@@ -43,7 +43,7 @@ def check_apache_modules():
     installed_mods = getoutput("apache2ctl -M")
     for mod in required_mods.split():
         if mod not in installed_mods:
-            print("WARNING: mod %s doesn't seem to be activated")
+            print("WARNING: mod %s doesn't seem to be activated" % mod)
 
 
 def render_template(name, variables):
