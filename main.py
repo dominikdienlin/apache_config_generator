@@ -4,7 +4,7 @@ import yaml
 from subprocess import getoutput
 
 apache_config_dir = "/etc/apache2/sites-enabled/"
-config_path = "~/.configs/apache_config_generator.yaml"
+config_path = "./config.yaml"
 
 default_config = dict(
     defaults=dict(
@@ -62,7 +62,11 @@ def render_templates(config):
         vars_local.update(variables)
 
         result = render_template(name, vars_local)
-        with open(apache_config_dir+"/"+name+".conf", "w") as f:
+        path = apache_config_dir+"/"+name+".conf"
+        if os.path.isfile(path):
+            if input("File %s already exists, would you like to overwrite it? (y/[n])" % path).lower().strip() != "y":
+                continue
+        with open(path, "w") as f:
             f.write(result)
 
 
@@ -72,7 +76,7 @@ if __name__ == "__main__":
     if not os.path.isfile(config_path):
         with open(config_path, "w") as f:
             yaml.dump(default_config, f, allow_unicode=True, default_flow_style=False)
-        print("generated default config at %s" % os.path.abspath(config_path))
+        print("generated default config at %s" % config_path)
     else:
         check_apache_modules()
         with open(config_path, "r") as f:
