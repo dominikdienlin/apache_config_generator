@@ -17,7 +17,7 @@ default_config = dict(
 template = Template("""\
 <Virtualhost *:{{ local_http_port }}>
     ServerName {{ subdomain }}.{{ host }}
-    ProxyPass / http://{{ ip }}:{{ port }}/
+    ProxyPass / http://{{ ip }}:{{ port }}/ Keepalive=On
     ProxyPassReverse / http://{{ ip }}:{{ port }}/
 
     <Location "/ws">
