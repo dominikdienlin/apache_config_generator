@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import os
 from jinja2 import Template
 import yaml
@@ -10,19 +11,22 @@ default_config = dict(
     defaults=dict(
         local_http_port=80,
         host="<hostname>",
-        https_redirect=True
+        https_redirect=True,
+        ws_location="ws"
     )
 )
 
 template = Template("""\
 <Virtualhost *:{{ local_http_port }}>
     ServerName {{ subdomain }}.{{ host }}
-    ProxyPass / http://{{ ip }}:{{ port }}/ Keepalive=On
-    ProxyPassReverse / http://{{ ip }}:{{ port }}/
 
-    <Location "/ws">
-       ProxyPass "ws://{{ ip }}:{{ port }}/ws"
-    </Location>
+ RewriteEngine On
+  RewriteCond %{HTTP:Upgrade} =websocket [NC]
+  RewriteRule /(.*)           ws://{{ ip }}:{{ port }}/$1 [P,L]
+  RewriteCond %{HTTP:Upgrade} !=websocket [NC]
+  RewriteRule /(.*)           http://{{ ip }}:{{ port }}/$1 [P,L]
+
+
 {%- if https_redirect %}
     RewriteEngine on
     RewriteCond %{SERVER_NAME} ={{ subdomain }}.{{ host }}
@@ -39,7 +43,8 @@ def check_apache_modules():
     proxy_http_module
     proxy_wstunnel_module
     rewrite_module
-    ssl_module"""
+    ssl_module
+    proxy_ajp_module"""
     installed_mods = getoutput("apache2ctl -M")
     for mod in required_mods.split():
         if mod not in installed_mods:
