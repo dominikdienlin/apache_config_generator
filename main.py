@@ -10,30 +10,42 @@ config_path = "./config.yaml"
 default_config = dict(
     defaults=dict(
         local_http_port=80,
+        local_https_port=443,
         host="<hostname>",
         https_redirect=True,
-        ws_location="ws"
+        run_certbot=True
     )
 )
+
+forward_cmd = """ 
+  RewriteCond %{HTTP:Upgrade} =websocket [NC]
+  RewriteRule /(.*)           ws://{{ ip }}:{{ port }}/$1 [P,L]
+  RewriteCond %{HTTP:Upgrade} !=websocket [NC]
+  RewriteRule /(.*)           http://{{ ip }}:{{ port }}/$1 [P,L]
+"""
+
 
 template = Template("""\
 <Virtualhost *:{{ local_http_port }}>
     ServerName {{ subdomain }}.{{ host }}
 
- RewriteEngine On
-  RewriteCond %{HTTP:Upgrade} =websocket [NC]
-  RewriteRule /(.*)           ws://{{ ip }}:{{ port }}/$1 [P,L]
-  RewriteCond %{HTTP:Upgrade} !=websocket [NC]
-  RewriteRule /(.*)           http://{{ ip }}:{{ port }}/$1 [P,L]
-
-
+    RewriteEngine On
 {%- if https_redirect %}
-    RewriteEngine on
     RewriteCond %{SERVER_NAME} ={{ subdomain }}.{{ host }}
     RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+{%- else -%}
+    """ + forward_cmd + """ 
 {%- endif %}    
 
 </Virtualhost>
+
+{%- if https_redirect %}
+<Virtualhost *:{{ local_https_port }}>
+    ServerName {{ subdomain }}.{{ host }} 
+    """ + forward_cmd + """ 
+</Virtualhost>
+{%- endif %}    
+
 """)
 
 
@@ -67,12 +79,15 @@ def render_templates(config):
         vars_local.update(variables)
 
         result = render_template(name, vars_local)
-        path = apache_config_dir+"/"+name+".conf"
+        path = os.path.abspath(apache_config_dir+"/"+name+".conf")
         if os.path.isfile(path):
-            if input("File %s already exists, would you like to overwrite it? (y/[n])" % path).lower().strip() != "y":
-                continue
+            print("Not replacing existing config %s. Delete it to update" % path.lower().strip())
+            continue
+        print("Writing config %s" % path.lower().strip())
         with open(path, "w") as f:
             f.write(result)
+        if input("Run certbot-auto -d %s.%s to register ssl certificate? ([y]/n)" % (name, vars_local["host"])).lower().strip() != "y":
+            os.system("certbot-auto -d %s.%s" % (name, vars_local["host"]))
 
 
 if __name__ == "__main__":
